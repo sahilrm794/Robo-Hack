@@ -217,6 +217,8 @@ class AgentLogger:
         timestamp = datetime.now().strftime("%H:%M:%S")
         
         total_latency = metrics.get("total_latency_ms", 0)
+        if not isinstance(total_latency, (int, float)):
+            total_latency = 0
         
         # Latency status
         if total_latency < 800:
@@ -228,6 +230,10 @@ class AgentLogger:
         
         tools_used = ", ".join([tc.get("name", "unknown") for tc in tool_calls]) if tool_calls else "None"
         
+        # Helper to format metrics safely
+        def fmt_ms(val):
+            return f"{val:.0f}ms" if isinstance(val, (int, float)) else "N/A"
+        
         entry = f"""### ✅ Turn Complete | {timestamp}
 
 **Session:** `{session_id}`  
@@ -236,11 +242,11 @@ class AgentLogger:
 | Metric | Value |
 |--------|-------|
 | Total Latency | {latency_status} ({total_latency:.0f}ms) |
-| STT | {metrics.get('stt_latency_ms', 'N/A'):.0f}ms |
-| LLM | {metrics.get('llm_latency_ms', 'N/A'):.0f}ms |
-| LLM TTFT | {metrics.get('llm_ttft_ms', 'N/A'):.0f}ms |
-| Tools | {metrics.get('tool_latency_ms', 'N/A'):.0f}ms |
-| TTS | {metrics.get('tts_latency_ms', 'N/A'):.0f}ms |
+| STT | {fmt_ms(metrics.get('stt_latency_ms'))} |
+| LLM | {fmt_ms(metrics.get('llm_latency_ms'))} |
+| LLM TTFT | {fmt_ms(metrics.get('llm_ttft_ms'))} |
+| Tools | {fmt_ms(metrics.get('tool_latency_ms'))} |
+| TTS | {fmt_ms(metrics.get('tts_latency_ms'))} |
 
 **Tools Used:** {tools_used}
 

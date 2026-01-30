@@ -130,10 +130,28 @@ class Settings(BaseSettings):
     CACHE_TTL_SECONDS: int = Field(default=300, description="Cache TTL in seconds")
     CACHE_MAX_SIZE: int = Field(default=1000, description="Maximum cache entries")
     
+    # =========================
+    # Timeout Settings (from .env)
+    # =========================
+    TARGET_LATENCY_MS: int = Field(default=1000, description="Target total latency in ms")
+    STT_TIMEOUT_MS: int = Field(default=500, description="STT timeout in ms")
+    LLM_TIMEOUT_MS: int = Field(default=3000, description="LLM timeout in ms")
+    TTS_TIMEOUT_MS: int = Field(default=500, description="TTS timeout in ms")
+    SESSION_TIMEOUT_SECONDS: int = Field(default=3600, description="Session timeout in seconds")
+    
+    # =========================
+    # Feature Flags (from .env)
+    # =========================
+    LOG_FILE: str = Field(default="logs/agent_log.md", description="Log file path")
+    ENABLE_STREAMING: bool = Field(default=True, description="Enable streaming responses")
+    ENABLE_FALLBACK_TTS: bool = Field(default=True, description="Enable Edge-TTS fallback")
+    MOCK_STT_FOR_TESTING: bool = Field(default=True, description="Use mock STT for testing")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields from .env
 
 
 @lru_cache()

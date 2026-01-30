@@ -92,3 +92,155 @@ async def metrics(request: Request):
         )
     
     return metrics_data
+
+
+# ===========================================
+# Test Endpoints for Bootstrap Verification
+# ===========================================
+
+@router.get("/stt-test")
+async def stt_test(request: Request):
+    """
+    Test STT service availability.
+    Returns service status and configuration.
+    """
+    stt_info = {
+        "service": "stt",
+        "status": "unavailable",
+        "model": None,
+        "mode": None,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    if hasattr(request.app.state, 'stt_service'):
+        stt = request.app.state.stt_service
+        stt_info["status"] = "ready" if stt._is_initialized else "mock"
+        stt_info["model"] = settings.STT_MODEL_ID
+        stt_info["mode"] = "live" if stt._is_initialized else "mock"
+        stt_info["supported_languages"] = ["en", "hi", "bn", "mr"]
+    
+    return stt_info
+
+
+@router.get("/tts-test")
+async def tts_test(request: Request):
+    """
+    Test TTS service availability.
+    Returns service status and available voices.
+    """
+    tts_info = {
+        "service": "tts",
+        "status": "unavailable",
+        "mode": None,
+        "voices": {},
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    if hasattr(request.app.state, 'tts_service'):
+        tts = request.app.state.tts_service
+        tts_info["status"] = "ready"
+        tts_info["mode"] = "ai4bharat" if tts._is_initialized else "edge-tts"
+        tts_info["voices"] = {
+            "en": settings.VOICE_MAPPING.get("en", "en-US-JennyNeural"),
+            "hi": settings.VOICE_MAPPING.get("hi", "hi-IN-SwaraNeural"),
+            "bn": settings.VOICE_MAPPING.get("bn", "bn-IN-TanishaaNeural"),
+            "mr": settings.VOICE_MAPPING.get("mr", "mr-IN-AarohiNeural")
+        }
+    
+    return tts_info
+
+
+@router.post("/tts-test")
+async def tts_synthesize_test(request: Request):
+    """
+    Test TTS synthesis with sample text.
+    """
+    import base64
+    
+    data = await request.json()
+    text = data.get("text", "Hello, this is a test.")
+    language = data.get("language", "en")
+    
+    if not hasattr(request.app.state, 'tts_service'):
+        return {"error": "TTS service not available"}
+    
+    tts = request.app.state.tts_service
+    
+    try:
+        audio_bytes = await tts.synthesize(text, language)
+        
+        return {
+            "status": "success",
+            "text": text,
+            "language": language,
+            "audio_size_bytes": len(audio_bytes),
+            "audio_base64": base64.b64encode(audio_bytes).decode()[:100] + "..."
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@router.get("/llm-test")
+async def llm_test(request: Request):
+    """
+    Test LLM service availability.
+    Returns service status and configuration.
+    """
+    llm_info = {
+        "service": "llm",
+        "status": "unavailable",
+        "provider": "groq",
+        "model": None,
+        "api_key_set": False,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    if hasattr(request.app.state, 'llm_service'):
+        llm = request.app.state.llm_service
+        llm_info["status"] = "ready" if llm._is_initialized else "not_initialized"
+        llm_info["model"] = settings.LLM_MODEL_ID
+        llm_info["api_key_set"] = bool(settings.GROQ_API_KEY)
+    
+    return llm_info
+
+
+@router.post("/llm-test")
+async def llm_completion_test(request: Request):
+    """
+    Test LLM completion with a simple prompt.
+    """
+    import time
+    
+    data = await request.json()
+    prompt = data.get("prompt", "Say hello in one sentence.")
+    
+    if not hasattr(request.app.state, 'llm_service'):
+        return {"error": "LLM service not available"}
+    
+    llm = request.app.state.llm_service
+    
+    try:
+        start_time = time.time()
+        
+        response = await llm.complete([
+            {"role": "system", "content": "You are a helpful assistant. Be brief."},
+            {"role": "user", "content": prompt}
+        ])
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        return {
+            "status": "success",
+            "prompt": prompt,
+            "response": response.content,
+            "latency_ms": round(latency_ms, 2),
+            "model": settings.LLM_MODEL_ID
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }

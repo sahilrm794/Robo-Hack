@@ -41,25 +41,25 @@ class STTService:
     
     Supports:
     - Streaming transcription for low latency
-    - Multiple Indian languages (Hindi, Bengali, Marathi, English)
-    - Confidence scoring
+    - 22 Indian languages including Hindi, Bengali, Marathi, Tamil, Telugu, etc.
+    - CTC and RNNT decoding strategies
     - Language detection
     """
     
     def __init__(self):
         self._model = None
-        self._processor = None
         self._is_initialized = False
         self._device = "cuda"  # Will fallback to CPU if needed
-        self._supported_languages = ["hi", "bn", "mr", "en"]
         
-        # Language-specific model mapping
-        self._language_models = {
-            "hi": "ai4bharat/indicconformer_stt-hi-hybrid_ctc_rnnt-13M",
-            "bn": "ai4bharat/indicconformer_stt-bn-hybrid_ctc_rnnt-13M",
-            "mr": "ai4bharat/indicconformer_stt-mr-hybrid_ctc_rnnt-13M",
-            "en": "ai4bharat/indicconformer_stt-en-hybrid_ctc_rnnt-13M"
-        }
+        # All 22 supported Indian languages
+        self._supported_languages = [
+            "as", "bn", "brx", "doi", "gu", "hi", "kn", "kok", "ks",
+            "mai", "ml", "mni", "mr", "ne", "or", "pa", "sa", "sat",
+            "sd", "ta", "te", "ur", "en"
+        ]
+        
+        # Default decoding strategy
+        self._decoder = "ctc"  # Options: "ctc" or "rnnt"
     
     async def initialize(self):
         """Initialize STT models. Load in background to not block startup."""
@@ -79,31 +79,29 @@ class STTService:
             self._is_initialized = False
     
     def _load_models(self):
-        """Load STT models (runs in thread pool)."""
+        """Load AI4Bharat IndicConformer model (runs in thread pool)."""
         try:
             import torch
-            from transformers import AutoModelForCTC, AutoProcessor
+            import torchaudio
+            from transformers import AutoModel
             
             # Check device availability
             if not torch.cuda.is_available():
                 logger.warning("CUDA not available, using CPU for STT")
                 self._device = "cpu"
             
-            # Load the primary model (Hindi as default, others loaded on demand)
             model_id = settings.STT_MODEL_ID
-            
             logger.info(f"Loading STT model: {model_id}")
             
-            # For hackathon, we'll use a simpler approach
-            # In production, load all language models
-            self._processor = AutoProcessor.from_pretrained(
+            # Load AI4Bharat IndicConformer with trust_remote_code
+            self._model = AutoModel.from_pretrained(
                 model_id,
+                trust_remote_code=True,
                 token=settings.HF_TOKEN
             )
-            self._model = AutoModelForCTC.from_pretrained(
-                model_id,
-                token=settings.HF_TOKEN
-            ).to(self._device)
+            
+            # Note: IndicConformer handles device placement internally
+            logger.info(f"STT model loaded on device: {self._device}")
             
             # Warm up with dummy inference
             self._warmup()
@@ -122,18 +120,11 @@ class STTService:
         try:
             import torch
             
-            # Generate dummy audio
-            dummy_audio = np.zeros(16000, dtype=np.float32)  # 1 second
+            # Generate dummy audio (1 second of silence)
+            dummy_audio = torch.zeros(1, 16000, dtype=torch.float32)
             
-            # Process
-            inputs = self._processor(
-                dummy_audio,
-                sampling_rate=16000,
-                return_tensors="pt"
-            ).to(self._device)
-            
-            with torch.no_grad():
-                self._model(**inputs)
+            # Run warmup transcription with Hindi
+            _ = self._model(dummy_audio, "hi", self._decoder)
             
             logger.info("STT model warmed up")
             
@@ -229,43 +220,45 @@ class STTService:
         audio_array: np.ndarray,
         language_hint: Optional[str]
     ) -> STTResult:
-        """Synchronous transcription (runs in thread pool)."""
+        """Synchronous transcription using AI4Bharat IndicConformer (runs in thread pool)."""
         import torch
+        import torchaudio
         
-        # Normalize audio
+        # Normalize audio to [-1, 1] range
         if audio_array.max() > 1.0:
             audio_array = audio_array / 32768.0
         
-        # Process audio
-        inputs = self._processor(
-            audio_array,
-            sampling_rate=settings.AUDIO_SAMPLE_RATE,
-            return_tensors="pt"
-        ).to(self._device)
+        # Convert to torch tensor with proper shape (1, samples)
+        wav = torch.from_numpy(audio_array).float().unsqueeze(0)
         
-        # Run inference
-        with torch.no_grad():
-            outputs = self._model(**inputs)
-            logits = outputs.logits
+        # Ensure mono audio
+        if wav.dim() > 2:
+            wav = torch.mean(wav, dim=0, keepdim=True)
         
-        # Decode
-        predicted_ids = torch.argmax(logits, dim=-1)
-        transcription = self._processor.batch_decode(predicted_ids)[0]
+        # Resample if needed (model expects 16kHz)
+        target_sample_rate = 16000
+        current_sr = settings.AUDIO_SAMPLE_RATE
+        if current_sr != target_sample_rate:
+            resampler = torchaudio.transforms.Resample(orig_freq=current_sr, new_freq=target_sample_rate)
+            wav = resampler(wav)
         
-        # Calculate confidence (simplified)
-        probs = torch.softmax(logits, dim=-1)
-        confidence = probs.max(dim=-1).values.mean().item()
+        # Determine language (use hint or default to Hindi)
+        language = language_hint if language_hint in self._supported_languages else "hi"
         
-        # Detect language (simplified - based on script detection)
-        detected_language = self._detect_language(transcription, language_hint)
+        # Run inference with IndicConformer
+        # model(audio, language_code, decoder_type)
+        transcription = self._model(wav, language, self._decoder)
         
         # Calculate audio duration
         audio_duration_ms = int(len(audio_array) / settings.AUDIO_SAMPLE_RATE * 1000)
         
+        # Detect actual language from transcription text if no hint provided
+        detected_language = self._detect_language(transcription, language_hint)
+        
         return STTResult(
-            text=transcription.strip(),
+            text=transcription.strip() if transcription else "",
             language=detected_language,
-            confidence=confidence,
+            confidence=0.9,  # IndicConformer doesn't return confidence directly
             audio_duration_ms=audio_duration_ms,
             is_final=True
         )
@@ -330,10 +323,6 @@ class STTService:
         if self._model is not None:
             del self._model
             self._model = None
-        
-        if self._processor is not None:
-            del self._processor
-            self._processor = None
         
         self._is_initialized = False
         logger.info("STT service cleaned up")
