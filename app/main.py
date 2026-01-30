@@ -13,6 +13,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.core.exceptions import VoiceAgentException
@@ -223,6 +224,9 @@ async def general_exception_handler(request: Request, exc: Exception):
 app.include_router(health.router, tags=["Health"])
 app.include_router(voice.router, prefix="/api/v1/voice", tags=["Voice"])
 app.include_router(conversation.router, prefix="/api/v1/conversation", tags=["Conversation"])
+
+# Mount static files for voice test page
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/")

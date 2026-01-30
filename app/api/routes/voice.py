@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import time
+import io
 from typing import Optional
 from uuid import uuid4
 
@@ -25,6 +26,65 @@ router = APIRouter()
 # Session manager for WebSocket connections
 session_manager = SessionManager()
 
+
+def convert_webm_to_pcm(webm_data: bytes) -> bytes:
+    """Convert WebM audio to raw PCM (16kHz, mono, 16-bit)."""
+    import numpy as np
+    import io
+    import tempfile
+    import os
+    
+    # First, try using pydub with ffmpeg (most reliable for webm)
+    try:
+        from pydub import AudioSegment
+        
+        # Write to temp file (pydub works better with files for webm)
+        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as f:
+            f.write(webm_data)
+            temp_path = f.name
+        
+        try:
+            audio = AudioSegment.from_file(temp_path, format="webm")
+            audio = audio.set_channels(1).set_frame_rate(16000).set_sample_width(2)
+            pcm_data = audio.raw_data
+            logger.info(f"Converted WebM to PCM: {len(pcm_data)} bytes")
+            return pcm_data
+        finally:
+            os.unlink(temp_path)  # Clean up temp file
+            
+    except Exception as e:
+        logger.warning(f"pydub conversion failed: {e}")
+    
+    # Fallback: Try soundfile
+    try:
+        import soundfile as sf
+        
+        audio_io = io.BytesIO(webm_data)
+        data, samplerate = sf.read(audio_io)
+        
+        # Convert to mono if stereo
+        if len(data.shape) > 1:
+            data = np.mean(data, axis=1)
+        
+        # Resample to 16kHz if needed
+        if samplerate != 16000:
+            import torchaudio
+            import torch
+            tensor = torch.from_numpy(data).float().unsqueeze(0)
+            resampler = torchaudio.transforms.Resample(orig_freq=samplerate, new_freq=16000)
+            tensor = resampler(tensor)
+            data = tensor.squeeze().numpy()
+        
+        # Convert to 16-bit PCM
+        data = (data * 32767).astype(np.int16)
+        return data.tobytes()
+        
+    except Exception as e:
+        logger.warning(f"soundfile conversion failed: {e}")
+    
+    # Last resort: return raw data and hope STT can handle it
+    logger.warning("All audio conversion methods failed, returning raw data")
+    return webm_data
 
 @router.websocket("/stream")
 async def voice_stream(
@@ -136,24 +196,46 @@ async def voice_stream(
                 await websocket.send_json({"type": "processing"})
                 
                 try:
+                    # Convert audio if needed (WebM -> PCM)
+                    pcm_audio = convert_webm_to_pcm(bytes(audio_buffer))
+                    
                     # Create async iterator from audio buffer
                     async def audio_chunks():
                         chunk_size = 3200  # 100ms at 16kHz
-                        for i in range(0, len(audio_buffer), chunk_size):
-                            yield bytes(audio_buffer[i:i + chunk_size])
+                        for i in range(0, len(pcm_audio), chunk_size):
+                            yield pcm_audio[i:i + chunk_size]
+                    
+                    # Collect audio chunks to send back
+                    audio_response = bytearray()
                     
                     # Process through pipeline and stream response
                     async for audio_chunk in pipeline.process_audio_streaming(
                         audio_chunks(),
                         session
                     ):
+                        audio_response.extend(audio_chunk)
                         # Send audio chunk to client
                         await websocket.send_bytes(audio_chunk)
                     
-                    # Send end of response
+                    # Get transcript from session
+                    user_text = ""
+                    agent_text = ""
+                    if session.turns:
+                        # Get last user turn
+                        for turn in reversed(session.turns):
+                            if turn.role == "user" and not user_text:
+                                user_text = turn.content
+                            elif turn.role == "assistant" and not agent_text:
+                                agent_text = turn.content
+                            if user_text and agent_text:
+                                break
+                    
+                    # Send end of response with transcript
                     total_time = (time.time() - start_time) * 1000
                     await websocket.send_json({
-                        "type": "end",
+                        "type": "response",
+                        "user_text": user_text,
+                        "agent_text": agent_text,
                         "latency_ms": round(total_time, 2)
                     })
                     

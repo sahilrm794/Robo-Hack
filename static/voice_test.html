@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Agent - Real-Time Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            max-width: 600px;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #00d4ff, #7b2ff7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 40px;
+        }
+        .mic-container {
+            position: relative;
+            margin: 40px auto;
+        }
+        .mic-button {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(145deg, #2d2d44, #1a1a2e);
+            box-shadow: 0 10px 40px rgba(0, 212, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .mic-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 15px 50px rgba(0, 212, 255, 0.4);
+        }
+        .mic-button.recording {
+            animation: pulse 1.5s infinite;
+            background: linear-gradient(145deg, #ff4757, #c0392b);
+        }
+        .mic-button.processing {
+            background: linear-gradient(145deg, #f39c12, #e67e22);
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 10px 40px rgba(255, 71, 87, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 15px 60px rgba(255, 71, 87, 0.5); }
+        }
+        .mic-icon {
+            font-size: 60px;
+        }
+        .status {
+            margin-top: 30px;
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            font-size: 1.1em;
+        }
+        .status.connected { border: 2px solid #2ecc71; }
+        .status.disconnected { border: 2px solid #e74c3c; }
+        .status.recording { border: 2px solid #ff4757; }
+        .status.processing { border: 2px solid #f39c12; }
+        .transcript-box {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            min-height: 100px;
+            text-align: left;
+        }
+        .transcript-box h3 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        .user-text {
+            color: #2ecc71;
+            margin-bottom: 10px;
+        }
+        .agent-text {
+            color: #f39c12;
+        }
+        .language-select {
+            margin-top: 20px;
+        }
+        .language-select select {
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 10px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            cursor: pointer;
+        }
+        .language-select select option {
+            background: #1a1a2e;
+        }
+        .instructions {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 15px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        .instructions strong {
+            color: #00d4ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ Voice Agent</h1>
+        <p class="subtitle">AI4Bharat IndicConformer + Groq LLM</p>
+        
+        <div class="language-select">
+            <label>भाषा / Language: </label>
+            <select id="language">
+                <option value="hi" selected>हिंदी (Hindi)</option>
+                <option value="bn">বাংলা (Bengali)</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="te">తెలుగు (Telugu)</option>
+                <option value="mr">मराठी (Marathi)</option>
+                <option value="gu">ગુજરાતી (Gujarati)</option>
+                <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                <option value="ml">മലയാളം (Malayalam)</option>
+                <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+                <option value="ur">اردو (Urdu)</option>
+            </select>
+            <p style="font-size: 0.8em; color: #888; margin-top: 5px;">⚠️ English not supported - Use Hindi or your preferred Indian language</p>
+        </div>
+        
+        <div class="mic-container">
+            <button class="mic-button" id="micButton" onclick="toggleRecording()">
+                <span class="mic-icon">🎤</span>
+            </button>
+        </div>
+        
+        <div class="status disconnected" id="status">
+            🔴 Disconnected
+        </div>
+        
+        <div class="transcript-box">
+            <h3>💬 Conversation</h3>
+            <div id="conversation"></div>
+        </div>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong><br>
+            1. Select your language<br>
+            2. Click the microphone button to start recording<br>
+            3. Speak your question (about orders, products, returns, etc.)<br>
+            4. Click again to stop and get response<br>
+            5. Audio response will play automatically
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let audioContext = null;
+        let sessionId = 'session_' + Date.now();
+
+        const micButton = document.getElementById('micButton');
+        const statusDiv = document.getElementById('status');
+        const conversationDiv = document.getElementById('conversation');
+        const languageSelect = document.getElementById('language');
+
+        // Connect to WebSocket on page load
+        window.onload = connectWebSocket;
+
+        // Audio buffer to collect chunks
+        let audioBuffer = [];
+        let isCollectingAudio = false;
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v1/voice/stream?session_id=${sessionId}&language=${languageSelect.value}`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                updateStatus('connected', '🟢 Connected - Ready to listen');
+                console.log('WebSocket connected');
+            };
+            
+            ws.onclose = () => {
+                updateStatus('disconnected', '🔴 Disconnected');
+                console.log('WebSocket disconnected');
+                // Reconnect after 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateStatus('disconnected', '🔴 Connection Error');
+            };
+            
+            ws.onmessage = async (event) => {
+                if (event.data instanceof Blob) {
+                    // Audio chunk - collect it
+                    audioBuffer.push(event.data);
+                    isCollectingAudio = true;
+                } else {
+                    // JSON message
+                    const data = JSON.parse(event.data);
+                    handleMessage(data);
+                    
+                    // If we received response/end message, play collected audio
+                    if ((data.type === 'response' || data.type === 'end') && audioBuffer.length > 0) {
+                        const fullAudio = new Blob(audioBuffer, { type: 'audio/mpeg' });
+                        audioBuffer = [];
+                        isCollectingAudio = false;
+                        await playAudio(fullAudio);
+                    }
+                }
+            };
+        }
+
+        function handleMessage(data) {
+            console.log('Received:', data);
+            
+            switch(data.type) {
+                case 'connected':
+                    updateStatus('connected', '🟢 Connected - Ready to listen');
+                    break;
+                case 'processing':
+                    updateStatus('processing', '⏳ Processing your request...');
+                    micButton.classList.remove('recording');
+                    micButton.classList.add('processing');
+                    break;
+                case 'response':
+                    updateStatus('connected', '🟢 Connected - Ready to listen');
+                    micButton.classList.remove('processing');
+                    
+                    // Show transcript
+                    if (data.user_text) {
+                        addToConversation('user', data.user_text);
+                    }
+                    if (data.agent_text) {
+                        addToConversation('agent', data.agent_text);
+                    }
+                    break;
+                case 'error':
+                    updateStatus('disconnected', '❌ Error: ' + data.message);
+                    micButton.classList.remove('recording', 'processing');
+                    break;
+            }
+        }
+
+        function addToConversation(role, text) {
+            const div = document.createElement('div');
+            div.className = role === 'user' ? 'user-text' : 'agent-text';
+            div.innerHTML = `<strong>${role === 'user' ? '👤 You' : '🤖 Agent'}:</strong> ${text}`;
+            conversationDiv.appendChild(div);
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+        }
+
+        function updateStatus(state, text) {
+            statusDiv.className = 'status ' + state;
+            statusDiv.textContent = text;
+        }
+
+        async function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    } 
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await sendAudio(audioBlob);
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.start();
+                isRecording = true;
+                micButton.classList.add('recording');
+                updateStatus('recording', '🔴 Recording... Click to stop');
+                
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                alert('Could not access microphone. Please allow microphone permission.');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                micButton.classList.remove('recording');
+                updateStatus('processing', '⏳ Processing...');
+            }
+        }
+
+        async function sendAudio(audioBlob) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                // Convert webm to raw PCM for the server
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                
+                // Send audio data directly
+                ws.send(arrayBuffer);
+                
+                // Signal end of audio
+                ws.send(JSON.stringify({ type: 'end' }));
+            } else {
+                alert('Not connected to server. Please refresh the page.');
+            }
+        }
+
+        async function playAudio(audioBlob) {
+            try {
+                console.log(`Playing audio: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
+                
+                // Create audio URL with MP3 mime type
+                const audioUrl = URL.createObjectURL(new Blob([audioBlob], { type: 'audio/mpeg' }));
+                const audio = new Audio(audioUrl);
+                
+                audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                    updateStatus('connected', '🟢 Connected - Ready to listen');
+                };
+                
+                audio.onerror = (e) => {
+                    console.error('Audio playback error:', e);
+                    URL.revokeObjectURL(audioUrl);
+                    updateStatus('connected', '🟢 Ready (audio error)');
+                };
+                
+                updateStatus('connected', '🔊 Playing response...');
+                await audio.play();
+                
+            } catch (error) {
+                console.error('Error playing audio:', error);
+                updateStatus('connected', '🟢 Ready');
+            }
+        }
+
+        // Reconnect when language changes
+        languageSelect.onchange = () => {
+            if (ws) {
+                ws.close();
+            }
+            sessionId = 'session_' + Date.now();
+            connectWebSocket();
+        };
+    </script>
+</body>
+</html>

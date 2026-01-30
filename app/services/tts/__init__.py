@@ -135,6 +135,10 @@ class TTSService:
         if not self._is_initialized:
             return await self._mock_synthesize(text, language)
         
+        # Check if using edge-tts fallback
+        if isinstance(self._model, str) and self._model == "edge-tts":
+            return await self._edge_tts_synthesize(text, language)
+        
         try:
             loop = asyncio.get_event_loop()
             audio_data = await loop.run_in_executor(
@@ -205,12 +209,11 @@ class TTSService:
         voice: Optional[str]
     ) -> bytes:
         """Synchronous synthesis (runs in thread pool)."""
-        import torch
         import numpy as np
         
         if isinstance(self._model, str) and self._model == "edge-tts":
-            # Use edge-tts - but this is async, so we handle differently
-            raise Exception("Use edge_tts_synthesize instead")
+            # edge-tts needs async handling - return empty and let caller use edge_tts
+            return b''
         
         # Use Coqui TTS
         voice_config = self._voices.get(language, self._voices["en"])
@@ -241,19 +244,28 @@ class TTSService:
         text: str,
         language: str
     ) -> bytes:
-        """Fallback synthesis using edge-tts."""
+        """Fallback synthesis using edge-tts. Returns MP3 audio."""
         try:
             import edge_tts
             
-            # Voice mapping for edge-tts
+            # Voice mapping for edge-tts (all Indian languages)
             voices = {
                 "hi": "hi-IN-SwaraNeural",
-                "bn": "bn-IN-TanishaaNeural",
+                "bn": "bn-IN-TanishaaNeural", 
                 "mr": "mr-IN-AarohiNeural",
+                "ta": "ta-IN-PallaviNeural",
+                "te": "te-IN-ShrutiNeural",
+                "gu": "gu-IN-DhwaniNeural",
+                "kn": "kn-IN-SapnaNeural",
+                "ml": "ml-IN-SobhanaNeural",
+                "pa": "pa-IN-VaaniNeural",
+                "ur": "ur-IN-GulNeural",
                 "en": "en-IN-NeerjaNeural"
             }
             
-            voice = voices.get(language, voices["en"])
+            voice = voices.get(language, "hi-IN-SwaraNeural")
+            
+            logger.info(f"TTS: Synthesizing '{text[:50]}...' with voice {voice}")
             
             # Generate audio
             communicate = edge_tts.Communicate(text, voice)
@@ -263,6 +275,7 @@ class TTSService:
                 if chunk["type"] == "audio":
                     audio_data += chunk["data"]
             
+            logger.info(f"TTS: Generated {len(audio_data)} bytes of MP3 audio")
             return audio_data
             
         except ImportError:

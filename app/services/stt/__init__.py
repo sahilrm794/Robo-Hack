@@ -51,11 +51,11 @@ class STTService:
         self._is_initialized = False
         self._device = "cuda"  # Will fallback to CPU if needed
         
-        # All 22 supported Indian languages
+        # All 22 supported Indian languages (NO English - use Hindi for English speakers)
         self._supported_languages = [
             "as", "bn", "brx", "doi", "gu", "hi", "kn", "kok", "ks",
             "mai", "ml", "mni", "mr", "ne", "or", "pa", "sa", "sat",
-            "sd", "ta", "te", "ur", "en"
+            "sd", "ta", "te", "ur"
         ]
         
         # Default decoding strategy
