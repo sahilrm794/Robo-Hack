@@ -1,0 +1,611 @@
+"""
+Seed Database with Sample Data.
+Populates the database with demo products, FAQs, policies, and orders.
+"""
+
+import asyncio
+import sys
+from pathlib import Path
+from datetime import datetime, timedelta
+import random
+
+# Add parent to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from app.db.database import init_db, get_db
+from app.db.models import Product, Order, OrderItem, FAQ, Policy
+
+
+async def seed_products():
+    """Seed sample products."""
+    print("📦 Seeding products...")
+    
+    products = [
+        # Electronics
+        {
+            "sku": "PHONE-001",
+            "name": "SmartPhone Pro X",
+            "name_hi": "स्मार्टफोन प्रो एक्स",
+            "name_bn": "স্মার্টফোন প্রো এক্স",
+            "name_mr": "स्मार्टफोन प्रो एक्स",
+            "category": "Electronics",
+            "subcategory": "Phones",
+            "price": 49999.00,
+            "description": "Latest flagship smartphone with 5G, 128GB storage, and 48MP camera",
+            "description_hi": "5G, 128GB स्टोरेज और 48MP कैमरा वाला नवीनतम फ्लैगशिप स्मार्टफोन",
+            "specifications": '{"storage": "128GB", "ram": "8GB", "camera": "48MP", "5g": true}',
+            "stock_quantity": 50,
+            "is_available": True,
+            "rating": 4.5,
+            "review_count": 1250
+        },
+        {
+            "sku": "LAPTOP-001",
+            "name": "UltraBook 15 Pro",
+            "name_hi": "अल्ट्राबुक 15 प्रो",
+            "category": "Electronics",
+            "subcategory": "Laptops",
+            "price": 89999.00,
+            "description": "Thin and light laptop with Intel i7, 16GB RAM, and 512GB SSD",
+            "specifications": '{"processor": "Intel i7", "ram": "16GB", "storage": "512GB SSD"}',
+            "stock_quantity": 25,
+            "is_available": True,
+            "rating": 4.7,
+            "review_count": 856
+        },
+        {
+            "sku": "HEADPHONES-001",
+            "name": "Wireless ANC Headphones",
+            "name_hi": "वायरलेस एएनसी हेडफोन",
+            "category": "Electronics",
+            "subcategory": "Audio",
+            "price": 15999.00,
+            "description": "Premium wireless headphones with Active Noise Cancellation",
+            "specifications": '{"anc": true, "battery": "30 hours", "bluetooth": "5.2"}',
+            "stock_quantity": 100,
+            "is_available": True,
+            "rating": 4.3,
+            "review_count": 2100
+        },
+        # Clothing
+        {
+            "sku": "SHIRT-001",
+            "name": "Cotton Casual Shirt",
+            "name_hi": "कॉटन कैजुअल शर्ट",
+            "category": "Clothing",
+            "subcategory": "Shirts",
+            "price": 1299.00,
+            "description": "Comfortable 100% cotton shirt for casual wear",
+            "specifications": '{"material": "100% Cotton", "sizes": ["S", "M", "L", "XL"]}',
+            "stock_quantity": 200,
+            "is_available": True,
+            "rating": 4.2,
+            "review_count": 543
+        },
+        {
+            "sku": "JEANS-001",
+            "name": "Slim Fit Denim Jeans",
+            "name_hi": "स्लिम फिट डेनिम जींस",
+            "category": "Clothing",
+            "subcategory": "Jeans",
+            "price": 1999.00,
+            "description": "Classic slim fit jeans with stretch comfort",
+            "specifications": '{"material": "Denim", "fit": "Slim", "sizes": ["28", "30", "32", "34", "36"]}',
+            "stock_quantity": 150,
+            "is_available": True,
+            "rating": 4.4,
+            "review_count": 892
+        },
+        # Home & Kitchen
+        {
+            "sku": "MIXER-001",
+            "name": "Kitchen Mixer Grinder 750W",
+            "name_hi": "किचन मिक्सर ग्राइंडर 750W",
+            "category": "Home & Kitchen",
+            "subcategory": "Appliances",
+            "price": 3499.00,
+            "description": "Powerful mixer grinder with 3 jars for all kitchen needs",
+            "specifications": '{"power": "750W", "jars": 3, "warranty": "2 years"}',
+            "stock_quantity": 75,
+            "is_available": True,
+            "rating": 4.1,
+            "review_count": 1567
+        },
+        {
+            "sku": "COOKER-001",
+            "name": "Stainless Steel Pressure Cooker 5L",
+            "name_hi": "स्टेनलेस स्टील प्रेशर कुकर 5L",
+            "category": "Home & Kitchen",
+            "subcategory": "Cookware",
+            "price": 2199.00,
+            "description": "Durable stainless steel pressure cooker with safety valve",
+            "specifications": '{"capacity": "5L", "material": "Stainless Steel", "warranty": "5 years"}',
+            "stock_quantity": 120,
+            "is_available": True,
+            "rating": 4.6,
+            "review_count": 2340
+        },
+        # Beauty
+        {
+            "sku": "CREAM-001",
+            "name": "Moisturizing Face Cream",
+            "name_hi": "मॉइस्चराइजिंग फेस क्रीम",
+            "category": "Beauty",
+            "subcategory": "Skincare",
+            "price": 599.00,
+            "description": "Hydrating face cream for all skin types",
+            "specifications": '{"size": "100ml", "skin_type": "All", "spf": 15}',
+            "stock_quantity": 300,
+            "is_available": True,
+            "rating": 4.0,
+            "review_count": 678
+        },
+        # Books
+        {
+            "sku": "BOOK-001",
+            "name": "Learn Python Programming",
+            "name_hi": "पायथन प्रोग्रामिंग सीखें",
+            "category": "Books",
+            "subcategory": "Technology",
+            "price": 499.00,
+            "description": "Comprehensive guide to Python programming for beginners",
+            "specifications": '{"pages": 450, "language": "English", "format": "Paperback"}',
+            "stock_quantity": 80,
+            "is_available": True,
+            "rating": 4.8,
+            "review_count": 234
+        },
+        # Sports
+        {
+            "sku": "CRICKET-001",
+            "name": "Cricket Bat - Kashmir Willow",
+            "name_hi": "क्रिकेट बैट - कश्मीर विलो",
+            "category": "Sports",
+            "subcategory": "Cricket",
+            "price": 2499.00,
+            "description": "Professional grade Kashmir willow cricket bat",
+            "specifications": '{"wood": "Kashmir Willow", "weight": "1.2kg", "size": "Full"}',
+            "stock_quantity": 45,
+            "is_available": True,
+            "rating": 4.3,
+            "review_count": 312
+        }
+    ]
+    
+    async with get_db() as db:
+        for product_data in products:
+            product = Product(**product_data)
+            db.add(product)
+        await db.commit()
+    
+    print(f"   ✅ Added {len(products)} products")
+
+
+async def seed_faqs():
+    """Seed sample FAQs."""
+    print("❓ Seeding FAQs...")
+    
+    faqs = [
+        # General FAQs
+        {
+            "question": "What are your delivery charges?",
+            "question_hi": "आपकी डिलीवरी चार्जेस क्या हैं?",
+            "answer": "Delivery is FREE for orders above ₹499. For orders below ₹499, a delivery charge of ₹49 applies.",
+            "answer_hi": "₹499 से ऊपर के ऑर्डर पर डिलीवरी मुफ्त है। ₹499 से कम के ऑर्डर पर ₹49 की डिलीवरी चार्ज लागू होती है।",
+            "category": "shipping",
+            "is_general": True
+        },
+        {
+            "question": "How long does delivery take?",
+            "question_hi": "डिलीवरी में कितना समय लगता है?",
+            "answer": "Standard delivery takes 3-5 business days. Express delivery (₹99 extra) delivers within 1-2 business days for metro cities.",
+            "answer_hi": "स्टैंडर्ड डिलीवरी में 3-5 कार्यदिवस लगते हैं। एक्सप्रेस डिलीवरी (₹99 अतिरिक्त) मेट्रो शहरों के लिए 1-2 कार्यदिवस में डिलीवर करती है।",
+            "category": "shipping",
+            "is_general": True
+        },
+        {
+            "question": "What is your return policy?",
+            "question_hi": "आपकी रिटर्न पॉलिसी क्या है?",
+            "answer": "We offer 7-day easy returns for most products. Electronics have a 7-day replacement policy. Some items like innerwear are non-returnable.",
+            "answer_hi": "हम अधिकांश उत्पादों के लिए 7-दिन की आसान वापसी प्रदान करते हैं। इलेक्ट्रॉनिक्स में 7-दिन की रिप्लेसमेंट पॉलिसी है।",
+            "category": "returns",
+            "is_general": True
+        },
+        {
+            "question": "What payment methods do you accept?",
+            "question_hi": "आप कौन से भुगतान के तरीके स्वीकार करते हैं?",
+            "answer": "We accept Credit/Debit cards, UPI, Net Banking, Wallets (Paytm, PhonePe), and Cash on Delivery (COD).",
+            "answer_hi": "हम क्रेडिट/डेबिट कार्ड, UPI, नेट बैंकिंग, वॉलेट (Paytm, PhonePe), और कैश ऑन डिलीवरी (COD) स्वीकार करते हैं।",
+            "category": "payment",
+            "is_general": True
+        },
+        {
+            "question": "How can I track my order?",
+            "question_hi": "मैं अपना ऑर्डर कैसे ट्रैक कर सकता हूं?",
+            "answer": "You can track your order by providing your order ID or registered phone number. I can help you track it right now!",
+            "answer_hi": "आप अपना ऑर्डर आईडी या रजिस्टर्ड फोन नंबर देकर अपना ऑर्डर ट्रैक कर सकते हैं। मैं अभी आपकी मदद कर सकता हूं!",
+            "category": "orders",
+            "is_general": True
+        },
+        {
+            "question": "How do I cancel my order?",
+            "question_hi": "मैं अपना ऑर्डर कैसे रद्द करूं?",
+            "answer": "You can cancel your order before it is shipped. Once shipped, you'll need to reject delivery or return after receiving.",
+            "answer_hi": "आप शिपमेंट से पहले अपना ऑर्डर रद्द कर सकते हैं। शिप होने के बाद, आपको डिलीवरी अस्वीकार करनी होगी या प्राप्त करने के बाद वापस करना होगा।",
+            "category": "orders",
+            "is_general": True
+        },
+        {
+            "question": "Do you have EMI options?",
+            "question_hi": "क्या आपके पास EMI विकल्प हैं?",
+            "answer": "Yes! We offer No-Cost EMI on orders above ₹3000 with select bank credit cards. Tenure options: 3, 6, 9, or 12 months.",
+            "answer_hi": "हां! हम ₹3000 से ऊपर के ऑर्डर पर चुनिंदा बैंक क्रेडिट कार्ड के साथ नो-कॉस्ट EMI प्रदान करते हैं।",
+            "category": "payment",
+            "is_general": True
+        },
+        # Product-specific FAQs
+        {
+            "product_sku": "PHONE-001",
+            "question": "Does this phone support 5G?",
+            "answer": "Yes, the SmartPhone Pro X fully supports 5G connectivity on all major carriers.",
+            "category": "product",
+            "is_general": False
+        },
+        {
+            "product_sku": "LAPTOP-001",
+            "question": "What is the battery life of this laptop?",
+            "answer": "The UltraBook 15 Pro offers up to 10 hours of battery life under normal usage.",
+            "category": "product",
+            "is_general": False
+        },
+        {
+            "product_sku": "MIXER-001",
+            "question": "What warranty does this mixer come with?",
+            "answer": "The Kitchen Mixer Grinder comes with a 2-year manufacturer warranty covering motor and electrical defects.",
+            "category": "product",
+            "is_general": False
+        }
+    ]
+    
+    async with get_db() as db:
+        for faq_data in faqs:
+            faq = FAQ(**faq_data)
+            db.add(faq)
+        await db.commit()
+    
+    print(f"   ✅ Added {len(faqs)} FAQs")
+
+
+async def seed_policies():
+    """Seed sample policies."""
+    print("📜 Seeding policies...")
+    
+    policies = [
+        {
+            "policy_type": "return",
+            "title": "Return and Refund Policy",
+            "title_hi": "वापसी और रिफंड नीति",
+            "content": """
+## Return Policy
+
+### Eligibility
+- Most products can be returned within 7 days of delivery
+- Products must be unused, in original packaging with all tags attached
+- Electronics have a 7-day replacement-only policy
+
+### Non-Returnable Items
+- Innerwear and lingerie
+- Customized/personalized products
+- Digital downloads
+- Items marked as non-returnable
+
+### Refund Timeline
+- Refund will be processed within 5-7 business days after return pickup
+- Bank refunds may take additional 5-10 business days
+- Store credit is instant
+
+### How to Return
+1. Go to My Orders section
+2. Select the item to return
+3. Choose return reason
+4. Schedule pickup (free for eligible items)
+""",
+            "content_hi": "7 दिनों के भीतर अधिकांश उत्पाद वापस किए जा सकते हैं। उत्पाद अप्रयुक्त होने चाहिए।",
+            "is_active": True
+        },
+        {
+            "policy_type": "shipping",
+            "title": "Shipping Policy",
+            "title_hi": "शिपिंग नीति",
+            "content": """
+## Shipping Policy
+
+### Delivery Charges
+- FREE delivery on orders above ₹499
+- ₹49 for orders below ₹499
+- Express delivery: ₹99 (1-2 days for metro cities)
+
+### Delivery Timeline
+- Standard: 3-5 business days
+- Express: 1-2 business days (metro cities)
+- Remote areas: 7-10 business days
+
+### Order Tracking
+- Track via order ID on our website/app
+- SMS updates at each stage
+- Real-time tracking for express orders
+
+### Delivery Partners
+- We partner with BlueDart, Delhivery, and DTDC
+""",
+            "is_active": True
+        },
+        {
+            "policy_type": "payment",
+            "title": "Payment Policy",
+            "title_hi": "भुगतान नीति",
+            "content": """
+## Payment Methods
+
+### Accepted Payment Options
+- Credit/Debit Cards (Visa, Mastercard, RuPay)
+- UPI (PhonePe, Google Pay, Paytm)
+- Net Banking (all major banks)
+- Wallets (Paytm, PhonePe, Amazon Pay)
+- Cash on Delivery (COD)
+
+### EMI Options
+- No-Cost EMI on orders above ₹3000
+- Available tenures: 3, 6, 9, 12 months
+- Supported banks: HDFC, ICICI, SBI, Axis, Kotak
+
+### COD Policy
+- COD available for orders up to ₹25,000
+- ₹29 COD handling fee applies
+- Not available for some pin codes
+
+### Payment Security
+- 100% secure payments
+- PCI DSS compliant
+- 3D Secure authentication
+""",
+            "is_active": True
+        },
+        {
+            "policy_type": "warranty",
+            "title": "Warranty Policy",
+            "title_hi": "वारंटी नीति",
+            "content": """
+## Warranty Policy
+
+### Electronics
+- 1-year standard manufacturer warranty
+- Extended warranty available for purchase
+- Covers manufacturing defects only
+
+### Home Appliances
+- 2-year motor warranty
+- 1-year comprehensive warranty
+- Service at authorized centers
+
+### Clothing
+- 30-day quality guarantee
+- Color fade protection for first 3 washes
+- Size exchange available
+
+### Claiming Warranty
+1. Contact customer support with order ID
+2. Provide proof of purchase
+3. Describe the issue
+4. We'll arrange pickup or service center visit
+""",
+            "is_active": True
+        },
+        {
+            "policy_type": "privacy",
+            "title": "Privacy Policy",
+            "title_hi": "गोपनीयता नीति",
+            "content": """
+## Privacy Policy
+
+### Data Collection
+- We collect personal info for order processing
+- Payment details are encrypted and secure
+- Browsing data helps improve recommendations
+
+### Data Usage
+- Order fulfillment and delivery
+- Customer support
+- Personalized recommendations
+- Marketing (with consent)
+
+### Data Security
+- 256-bit SSL encryption
+- PCI DSS compliant
+- Regular security audits
+
+### Your Rights
+- Access your data anytime
+- Request data deletion
+- Opt-out of marketing
+- Update preferences
+""",
+            "is_active": True
+        },
+        {
+            "policy_type": "cancellation",
+            "title": "Order Cancellation Policy",
+            "title_hi": "ऑर्डर रद्द करने की नीति",
+            "content": """
+## Cancellation Policy
+
+### Before Shipping
+- Full refund on cancellation
+- Instant cancellation available
+- No cancellation charges
+
+### After Shipping
+- Cannot cancel once shipped
+- Reject delivery for refund
+- Or return after receiving
+
+### Partial Cancellation
+- Cancel individual items from multi-item orders
+- Delivery charges recalculated
+- Refund processed for cancelled items
+
+### Refund Timeline
+- Credit/Debit: 5-7 business days
+- UPI/Wallets: 1-3 business days
+- Store Credit: Instant
+""",
+            "is_active": True
+        }
+    ]
+    
+    async with get_db() as db:
+        for policy_data in policies:
+            policy = Policy(**policy_data)
+            db.add(policy)
+        await db.commit()
+    
+    print(f"   ✅ Added {len(policies)} policies")
+
+
+async def seed_orders():
+    """Seed sample orders."""
+    print("📋 Seeding orders...")
+    
+    orders_data = [
+        {
+            "order_id": "ORD-2024-001234",
+            "customer_phone": "9876543210",
+            "customer_email": "rahul.sharma@email.com",
+            "customer_name": "Rahul Sharma",
+            "status": "delivered",
+            "payment_method": "UPI",
+            "payment_status": "paid",
+            "total_amount": 51498.00,
+            "delivery_address": "123, Green Park, New Delhi - 110016",
+            "estimated_delivery": datetime.now() - timedelta(days=2),
+            "delivered_at": datetime.now() - timedelta(days=2),
+            "tracking_number": "TRACK123456789",
+            "tracking_url": "https://track.example.com/TRACK123456789",
+            "items": [
+                {"sku": "PHONE-001", "quantity": 1, "price": 49999.00},
+                {"sku": "HEADPHONES-001", "quantity": 1, "price": 1499.00}
+            ]
+        },
+        {
+            "order_id": "ORD-2024-001235",
+            "customer_phone": "9876543210",
+            "customer_email": "rahul.sharma@email.com",
+            "customer_name": "Rahul Sharma",
+            "status": "shipped",
+            "payment_method": "COD",
+            "payment_status": "pending",
+            "total_amount": 2498.00,
+            "delivery_address": "123, Green Park, New Delhi - 110016",
+            "estimated_delivery": datetime.now() + timedelta(days=2),
+            "tracking_number": "TRACK987654321",
+            "items": [
+                {"sku": "SHIRT-001", "quantity": 1, "price": 1299.00},
+                {"sku": "BOOK-001", "quantity": 1, "price": 499.00}
+            ]
+        },
+        {
+            "order_id": "ORD-2024-001236",
+            "customer_phone": "8765432109",
+            "customer_email": "priya.patel@email.com",
+            "customer_name": "Priya Patel",
+            "status": "processing",
+            "payment_method": "Credit Card",
+            "payment_status": "paid",
+            "total_amount": 5698.00,
+            "delivery_address": "45, MG Road, Mumbai - 400001",
+            "estimated_delivery": datetime.now() + timedelta(days=4),
+            "items": [
+                {"sku": "MIXER-001", "quantity": 1, "price": 3499.00},
+                {"sku": "COOKER-001", "quantity": 1, "price": 2199.00}
+            ]
+        },
+        {
+            "order_id": "ORD-2024-001237",
+            "customer_phone": "7654321098",
+            "customer_email": "amit.kumar@email.com",
+            "customer_name": "Amit Kumar",
+            "status": "cancelled",
+            "payment_method": "UPI",
+            "payment_status": "refunded",
+            "total_amount": 89999.00,
+            "delivery_address": "78, Park Street, Kolkata - 700016",
+            "cancelled_at": datetime.now() - timedelta(days=1),
+            "cancellation_reason": "Changed my mind",
+            "items": [
+                {"sku": "LAPTOP-001", "quantity": 1, "price": 89999.00}
+            ]
+        },
+        {
+            "order_id": "ORD-2024-001238",
+            "customer_phone": "6543210987",
+            "customer_email": "sneha.reddy@email.com",
+            "customer_name": "Sneha Reddy",
+            "status": "confirmed",
+            "payment_method": "Net Banking",
+            "payment_status": "paid",
+            "total_amount": 3798.00,
+            "delivery_address": "22, Banjara Hills, Hyderabad - 500034",
+            "estimated_delivery": datetime.now() + timedelta(days=5),
+            "items": [
+                {"sku": "JEANS-001", "quantity": 1, "price": 1999.00},
+                {"sku": "SHIRT-001", "quantity": 1, "price": 1299.00},
+                {"sku": "CREAM-001", "quantity": 1, "price": 599.00}
+            ]
+        }
+    ]
+    
+    async with get_db() as db:
+        for order_data in orders_data:
+            items = order_data.pop("items")
+            order = Order(**order_data)
+            db.add(order)
+            await db.flush()
+            
+            for item in items:
+                order_item = OrderItem(
+                    order_id=order.id,
+                    product_sku=item["sku"],
+                    quantity=item["quantity"],
+                    unit_price=item["price"],
+                    total_price=item["price"] * item["quantity"]
+                )
+                db.add(order_item)
+            
+        await db.commit()
+    
+    print(f"   ✅ Added {len(orders_data)} orders")
+
+
+async def main():
+    """Seed all data."""
+    print("🌱 Starting database seeding...\n")
+    
+    # Initialize database first
+    await init_db()
+    
+    # Seed data
+    await seed_products()
+    await seed_faqs()
+    await seed_policies()
+    await seed_orders()
+    
+    print("\n✅ Database seeding complete!")
+    print("\n📊 Summary:")
+    print("   - 10 Products")
+    print("   - 10 FAQs")
+    print("   - 6 Policies")
+    print("   - 5 Orders")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

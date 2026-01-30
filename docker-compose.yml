@@ -1,0 +1,71 @@
+# Voice-to-Voice AI Customer Support Backend
+# Docker Compose Configuration
+
+version: '3.8'
+
+services:
+  # Main API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: voice-agent-api
+    ports:
+      - "8000:8000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATABASE_URL=sqlite+aiosqlite:///./data/app.db
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - ENABLE_STREAMING=true
+      - ENABLE_FALLBACK_TTS=true
+      - MOCK_STT_FOR_TESTING=true
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Development Service with hot reload
+  api-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: voice-agent-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATABASE_URL=sqlite+aiosqlite:///./data/app.db
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - ENABLE_STREAMING=true
+      - ENABLE_FALLBACK_TTS=true
+      - MOCK_STT_FOR_TESTING=true
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    profiles:
+      - dev
+
+# Volumes
+volumes:
+  data:
+  logs:
+  models:
+
+# Networks
+networks:
+  default:
+    name: voice-agent-network
